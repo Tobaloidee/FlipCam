@@ -37,6 +37,9 @@ import com.facebook.AccessToken;
 import com.facebook.CallbackManager;
 import com.facebook.FacebookCallback;
 import com.facebook.FacebookException;
+import com.facebook.GraphRequest;
+import com.facebook.GraphResponse;
+import com.facebook.HttpMethod;
 import com.facebook.login.LoginManager;
 import com.facebook.login.LoginResult;
 import com.flipcam.media.FileMedia;
@@ -44,6 +47,9 @@ import com.flipcam.service.MediaUploadService;
 import com.flipcam.util.MediaUtil;
 import com.flipcam.view.SurfaceViewVideoFragment;
 import com.iceteck.silicompressorr.SiliCompressor;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
@@ -289,7 +295,6 @@ public class MediaActivity extends AppCompatActivity implements ViewPager.OnPage
     ArrayList<String> publishPermissions;
     public void shareToFacebook(){
             boolean loggedIn = AccessToken.getCurrentAccessToken() != null;
-            Log.d(TAG,"Access token = "+loggedIn);
             if(!loggedIn) {
                 publishPermissions = new ArrayList<>();
                 callbackManager = CallbackManager.Factory.create();
@@ -305,8 +310,8 @@ public class MediaActivity extends AppCompatActivity implements ViewPager.OnPage
                         Set<String> grantedPermissions = loginResult.getRecentlyGrantedPermissions();
                         Log.d(TAG, "access token = " + accessToken);
                         Log.d(TAG, "granted perm = " + grantedPermissions.size());
-                        /*ShareMediaToFacebook shareMediaToFacebook = new ShareMediaToFacebook();
-                        shareMediaToFacebook.execute(medias[selectedPosition].getPath());*/
+                        GraphRequest meReq = new GraphRequest(accessToken, "/me", null, HttpMethod.GET,getcallback);
+                        meReq.executeAsync();
                     }
 
                     @Override
@@ -324,21 +329,35 @@ public class MediaActivity extends AppCompatActivity implements ViewPager.OnPage
                 });
             }
             else{
-                //Fetch the user ID to be used for subsequent requests
-                /*ShareMediaToFacebook shareMediaToFacebook = new ShareMediaToFacebook();
-                shareMediaToFacebook.execute(medias[selectedPosition].getPath());*/
-                //FileInputStream uploadFile = null;
                 uploadToFacebook();
             }
     }
 
     public void uploadToFacebook(){
-        /*GraphRequest meReq = new GraphRequest(AccessToken.getCurrentAccessToken(), "/me", null,HttpMethod.GET,getcallback);
-        meReq.executeAsync();*/
         Intent mediaUploadIntent = new Intent(getApplicationContext(),MediaUploadService.class);
         mediaUploadIntent.putExtra("uploadFile",medias[selectedPosition].getPath());
+        mediaUploadIntent.putExtra("userId",userId);
         startService(mediaUploadIntent);
     }
+
+    GraphRequest.Callback getcallback = new GraphRequest.Callback() {
+        @Override
+        public void onCompleted(GraphResponse response) {
+            Log.i(TAG, "Fetch user id = " + response.getRawResponse());
+            if (response.getError() != null) {
+                Log.i(TAG, "onCompleted /me = " + response.getError().getErrorCode());
+                Log.i(TAG, "onCompleted /me = " + response.getError().getSubErrorCode());
+            }
+            JSONObject jsonObject = response.getJSONObject();
+            try {
+                userId = (String) jsonObject.get("id");
+                Log.i(TAG, "USER ID = " + userId);
+                uploadToFacebook();
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+    };
 
     String compressedFilePath;
 
